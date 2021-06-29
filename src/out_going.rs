@@ -83,6 +83,88 @@ fn create_ether_arp_packet(
     Ok(())
 }
 
+/// 获取访问外网的数据
+pub fn get_all() -> Option<OutGoing> {
+    //*
+
+    if let Ok(src_ip) = get_out_going_ip() {
+        if let Some((if_index, if_name)) = get_iface_by_ip(&src_ip.to_string()) {
+            if let Ok(dst_gw) = get_gw(if_index) {
+                if let Ok((src_mac, dst_mac)) = get_neighbour_mac(if_index, &src_ip, &dst_gw) {
+                    return Some(OutGoing {
+                        if_index,
+                        if_name,
+                        src_mac,
+                        dst_mac,
+                        src_ip,
+                        dst_gw,
+                    });
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// 获取访问外网使用的网关 IP
+///
+/// 见 get_out_going_ip
+///
+#[cfg(not(windows))]
+#[auto_func_name2]
+pub fn get_gw(if_index: u32) -> Result<Ipv4Addr, anyhow::Error> {
+    //*
+
+    // 发送 trick 报文
+    let _ = send_trick_packet();
+
+    // 接收 trick 报文触发的 ICMP 报文
+    let iface = get_iface(if_index)
+        .ok_or_else(|| raise_error!(__func__, format!("无法获得指定的接口 {}", if_index)))?;
+    let (mut _tx, mut rx) = match channel(
+        &iface,
+        Config {
+            write_buffer_size: 4096,
+            read_buffer_size: 4096,
+            read_timeout: None,
+            write_timeout: None,
+            channel_type: ChannelType::Layer2,
+            bpf_fd_attempts: 1000,
+            linux_fanout: None,
+            promiscuous: false,
+        },
+    ) {
+        Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
+        Ok(_) => Err(raise_error!(__func__, "不支持的通道类型"))?,
+        Err(err) => raise_error!(__func__, "\n", err)?,
+    };
+    recv_trick_packet(&mut rx, Duration::from_millis(3000))
+}
+
+/// 获取访问外网使用的网关 IP
+///
+/// 见 get_out_going_ip
+///
+#[cfg(target_os = "windows")]
+#[auto_func_name2]
+pub fn get_gw(if_index: u32) -> Result<Ipv4Addr, anyhow::Error> {
+    //*
+
+    // 发送 trick 报文
+    let _ = send_trick_packet();
+
+    // 接收 trick 报文触发的 ICMP 报文
+    let iface = get_iface(if_index)
+        .ok_or_else(|| raise_error!(__func__, format!("无法获得指定的接口 {}", if_index)))?;
+    let (mut _tx, mut rx) = match channel(&iface, Default::default()) {
+        Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
+        Ok(_) => Err(raise_error!(__func__, "不支持的通道类型"))?,
+        Err(err) => raise_error!(__func__, "\n", err)?,
+    };
+    recv_trick_packet(&mut rx, Duration::from_millis(3000))
+}
+
 /// 获取指定网卡
 pub fn get_iface(if_index: u32) -> Option<NetworkInterface> {
     //*
@@ -93,12 +175,30 @@ pub fn get_iface(if_index: u32) -> Option<NetworkInterface> {
         .next()
 }
 
+/// 获取访问外网使用的本地网卡
+///
+/// 见 get_out_going_ip
+///
+pub fn get_iface_by_ip(out_going_ip: &String) -> Option<(u32, String)> {
+    //*
+
+    for iface in interfaces() {
+        for ip in iface.ips {
+            if ip.ip().to_string() == *out_going_ip {
+                return Some((iface.index, iface.name));
+            }
+        }
+    }
+
+    return None;
+}
+
 /// 获取所有网卡, 包含名字、IPv4 地址/掩码列表
 ///
 /// 用法
 ///
 /// ```
-/// use rawsocket_helper::prelude::*;
+/// use rawsocket_helper::out_going::*;
 ///
 /// for (name, ips_v4) in get_ifaces() {
 ///   println!("{}, {}", name, ips_v4);
@@ -144,8 +244,8 @@ pub fn get_neighbour_mac(
         .ok_or_else(|| raise_error!(__func__, "无法获得接口 MAC 地址"))?;
     let (mut tx, mut rx) = match channel(&iface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => panic!("Unknown channel type"),
-        Err(e) => panic!("Error happened {}", e),
+        Ok(_) => Err(raise_error!(__func__, "不支持的通道类型"))?,
+        Err(err) => raise_error!(__func__, "\n", err)?,
     };
 
     // arp
@@ -191,117 +291,16 @@ pub fn get_neighbour_mac(
     }
 }
 
-/// 获取访问外网的数据
-pub fn get_out_going() -> Option<OutGoing> {
-    //*
-
-    if let Ok(src_ip) = get_out_going_ip() {
-        if let Some((if_index, if_name)) = get_out_going_if_by_ip(&src_ip.to_string()) {
-            if let Ok(dst_gw) = get_out_going_gw(if_index) {
-                if let Ok((src_mac, dst_mac)) = get_neighbour_mac(if_index, &src_ip, &dst_gw) {
-                    return Some(OutGoing {
-                        if_index,
-                        if_name,
-                        src_mac,
-                        dst_mac,
-                        src_ip,
-                        dst_gw,
-                    });
-                }
-            }
-        }
-    }
-
-    None
-}
-
-/// 获取访问外网使用的网关 IP
-///
-/// 见 get_out_going_ip
-///
-#[cfg(not(windows))]
-#[auto_func_name2]
-pub fn get_out_going_gw(if_index: u32) -> Result<Ipv4Addr, anyhow::Error> {
-    //*
-
-    // 发送 trick 报文
-    let _ = send_trick_packet();
-
-    // 接收 trick 报文触发的 ICMP 报文
-    let iface = get_iface(if_index)
-        .ok_or_else(|| raise_error!(__func__, format!("无法获得指定的接口 {}", if_index)))?;
-    let (mut _tx, mut rx) = match channel(
-        &iface,
-        Config {
-            write_buffer_size: 4096,
-            read_buffer_size: 4096,
-            read_timeout: None,
-            write_timeout: None,
-            channel_type: ChannelType::Layer2,
-            bpf_fd_attempts: 1000,
-            linux_fanout: None,
-            promiscuous: false,
-        },
-    ) {
-        Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => Err(raise_error!(__func__, "不支持的 channel 类型"))?,
-        Err(err) => raise_error!(__func__, "\n", err)?,
-    };
-    recv_trick_packet(&mut rx, Duration::from_millis(3000))
-}
-
-/// 获取访问外网使用的网关 IP
-///
-/// 见 get_out_going_ip
-///
-#[cfg(target_os = "windows")]
-#[auto_func_name2]
-pub fn get_out_going_gw(if_index: u32) -> Result<Ipv4Addr, anyhow::Error> {
-    //*
-
-    // 发送 trick 报文
-    let _ = send_trick_packet();
-
-    // 接收 trick 报文触发的 ICMP 报文
-    let iface = get_iface(if_index)
-        .ok_or_else(|| raise_error!(__func__, format!("无法获得指定的接口 {}", if_index)))?;
-    let (mut _tx, mut rx) = match channel(&iface, Default::default()) {
-        Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => Err(raise_error!(__func__, "不支持的 channel 类型"))?,
-        Err(err) => raise_error!(__func__, "\n", err)?,
-    };
-    recv_trick_packet(&mut rx, Duration::from_millis(3000))
-}
-
-/// 获取访问外网使用的本地网卡
-///
-/// 见 get_out_going_ip
-///
-pub fn get_out_going_if_by_ip(out_going_ip: &String) -> Option<(u32, String)> {
-    //*
-
-    for iface in interfaces() {
-        for ip in iface.ips {
-            if ip.ip().to_string() == *out_going_ip {
-                return Some((iface.index, iface.name));
-            }
-        }
-    }
-
-    return None;
-}
-
 /// 获取访问外网使用的本地 IP
 ///
 /// ## 用法
 ///
 /// ```
-/// use rawsocket_helper::prelude::*;
+/// use rawsocket_helper::out_going::*;
 ///
 /// let out_going_ip = get_out_going_ip().unwrap();
-/// let (out_going_if, out_going_if_name) =
-///     get_out_going_if_by_ip(&out_going_ip.to_string()).unwrap();
-/// let out_going_gw = get_out_going_gw(out_going_if).unwrap();
+/// let (out_going_if, out_going_if_name) = get_iface_by_ip(&out_going_ip.to_string()).unwrap();
+/// let out_going_gw = get_gw(out_going_if).unwrap();
 /// let (out_going_src_mac, out_going_dst_mac) =
 ///     get_neighbour_mac(out_going_if, &out_going_ip, &out_going_gw).unwrap();
 /// println!("out_going_if: {} {}", out_going_if, out_going_if_name);

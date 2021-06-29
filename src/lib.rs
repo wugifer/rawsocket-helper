@@ -1,11 +1,11 @@
-mod info;
+pub mod out_going;
+
+pub mod send;
 
 #[cfg(unix)]
 #[path = "linux.rs"]
-mod sys;
+pub mod sys;
 
 #[cfg(windows)]
 #[path = "windows.rs"]
-mod sys;
-
-pub mod prelude;
+pub mod sys;

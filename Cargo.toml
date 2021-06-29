@@ -1,6 +1,6 @@
 [package]
 name = "rawsocket_helper"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["wugifer <wugifer@>"]
 edition = "2018"
 description = "use rawsocket"
@@ -16,6 +16,7 @@ ipnetwork          = "~0.18"
 pnet               = "~0.28"
 python_comm        = "~0.1"
 python_comm_macros = "~0.1"
+rand               = "~0.8"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 sudo = { version = "~0.6" }
