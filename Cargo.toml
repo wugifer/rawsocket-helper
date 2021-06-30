@@ -12,6 +12,7 @@ documentation = "https://docs.rs/rawsocket-helper/"
 [dependencies]
 anyhow             = "~1.0"
 byteorder          = "~1.4"
+cidr-utils         = "~0.5"
 ipnetwork          = "~0.18"
 pnet               = "~0.28"
 python_comm        = "~0.1"

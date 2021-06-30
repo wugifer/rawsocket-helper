@@ -1,20 +1,20 @@
 //!
-//! 使用 pnet l2 通道发送数据
+//! 使用 pnet 通道发送数据
 //!
-//! ## 用法
+//! ## l2 用法
 //!
 //! ```
 //! use rand::thread_rng;
 //! use rawsocket_helper::{
 //!     out_going::{
-//!         get_all, get_iface, 
+//!         get_all, get_iface,
 //!     },
-//!     send::{create_channel, send_tcp},
+//!     send::{create_l2_channel, send_tcp},
 //! };
 //! use std::net::Ipv4Addr;
 //!
 //! let og = get_all().unwrap();
-//! let (mut tx, _) = create_channel(&get_iface(og.if_index).unwrap()).unwrap();
+//! let (mut tx, _) = create_l2_channel(&og.iface).unwrap();
 //! let mut rng = thread_rng();
 //! send_tcp(
 //!     &mut tx,
@@ -28,8 +28,8 @@
 //!     &mut rng,
 //!     |_x| false, // 修改生成的 TCP 报文, 如果修改 IP 头, 需同时修改校验和,
 //!                 // 如果修改 TCP 部分, 返回 true 会自动更新校验和, _x 是从 l2 开始的数据
-//! )
-//! .unwrap();
+//! ).unwrap()
+//! ;
 //! ```
 //!
 
@@ -40,6 +40,10 @@ use pnet::{
         ip::IpNextHeaderProtocols,
         ipv4::{checksum as ipv4_checksum, Ipv4Flags, MutableIpv4Packet},
         tcp::{ipv4_checksum as tcp_checksum, MutableTcpPacket, TcpFlags},
+    },
+    transport::{
+        transport_channel, TransportChannelType, TransportProtocol, TransportReceiver,
+        TransportSender,
     },
 };
 use python_comm::prelude::*;
@@ -91,7 +95,7 @@ pub fn build_l2_tcp_packet(
 }
 
 /// 构造 L4 TCP 包
-fn build_l4_tcp_packet(
+pub fn build_l4_tcp_packet(
     tx_packet: &mut MutableTcpPacket,
     src_ip: &Ipv4Addr,
     dst_ip: &Ipv4Addr,
@@ -118,14 +122,33 @@ fn build_l4_tcp_packet(
 ///
 /// tip: 在 Windows 平台, 如果 WinPcap (Npcap 兼容模式) 未正确安装, 无法收到包, 并且不报错!
 #[auto_func_name2]
-pub fn create_channel(
+pub fn create_l2_channel(
     iface: &NetworkInterface,
 ) -> Result<(Box<dyn DataLinkSender>, Box<dyn DataLinkReceiver>), anyhow::Error> {
+    //*
+
     match channel(&iface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => Ok((tx, rx)),
         Ok(_) => Err(raise_error!(__func__, "不支持的通道类型")),
         Err(err) => raise_error!(__func__, "\n", err),
     }
+}
+
+/// 创建 pnet L4 通道
+#[auto_func_name2]
+pub fn create_l4_channel() -> Result<(TransportSender, TransportReceiver), anyhow::Error> {
+    //*
+
+    let protocol =
+        TransportChannelType::Layer4(TransportProtocol::Ipv4(IpNextHeaderProtocols::Tcp));
+    transport_channel(256, protocol).or_else(|err| {
+        let text = format!("{:?}", err);
+        if text.contains("code: 10013,") {
+            Err(raise_error!(__func__, "权限不足"))
+        } else {
+            raise_error!(__func__, "\n", err)
+        }
+    })
 }
 
 /// 通过 pnet L2 通道构造并发送 tcp 报文
