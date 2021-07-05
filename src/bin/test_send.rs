@@ -51,8 +51,7 @@ fn main_error() -> Result<(), anyhow::Error> {
     }
 
     // 匹配接口名称
-    let (iface, src_ip) =
-        get_iface_by_name(if_name.as_str()).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+    let (iface, src_ip) = get_iface_by_name(&if_name).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
     let src_ip = src_ip.ok_or_else(|| raise_error!(__func__, "指定接口查不到 IPv4 地址"))?;
 
     // 检查 MAC 地址，应晚于 get_iface_and_ip 否则 list 不能给出正确提示

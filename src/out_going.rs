@@ -83,25 +83,50 @@ fn create_ether_arp_packet(
 }
 
 /// 获取访问外网的数据
-pub fn get_all() -> Option<OutGoing> {
-    if let Ok(src_ip) = get_out_going_ip() {
-        if let Some((iface, if_name)) = get_iface_by_ip(&src_ip.to_string()) {
-            if let Ok(dst_gw) = get_gw(&iface) {
-                if let Ok((src_mac, dst_mac)) = get_neighbour_mac(&iface, &src_ip, &dst_gw) {
-                    return Some(OutGoing {
-                        iface,
-                        if_name,
-                        src_mac,
-                        dst_mac,
-                        src_ip,
-                        dst_gw,
-                    });
-                }
-            }
-        }
-    }
+#[auto_func_name2]
+pub fn get_all() -> Result<OutGoing, anyhow::Error> {
+    let src_ip = get_out_going_ip().or_else(|err| raise_error!(__func__, "\n", err))?;
+    let (iface, if_name) =
+        get_iface_by_ip(&src_ip.to_string()).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
 
-    None
+    get_all_with(iface, if_name, src_ip).or_else(|err| raise_error!(__func__, "\n", err))
+}
+
+/// 获取访问外网的数据, 限定出网接口
+#[auto_func_name2]
+pub fn get_all_by_if_name(if_name: String) -> Result<OutGoing, anyhow::Error> {
+    let (iface, src_ip) = get_iface_by_name(&if_name).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+
+    get_all_with(
+        iface,
+        if_name,
+        src_ip.ok_or_else(|| raise_error!(__func__, "查不到合适的出网 IP"))?,
+    )
+    .or_else(|err| raise_error!(__func__, "\n", err))
+}
+
+/// 获取访问外网的数据, 限定出网 IP
+#[auto_func_name2]
+pub fn get_all_by_src_ip(src_ip: Ipv4Addr) -> Result<OutGoing, anyhow::Error> {
+    let (iface, if_name) =
+        get_iface_by_ip(&src_ip.to_string()).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+    get_all_with(iface, if_name, src_ip).or_else(|err| raise_error!(__func__, "\n", err))
+}
+
+#[auto_func_name2]
+fn get_all_with(iface: NetworkInterface, if_name: String, src_ip: Ipv4Addr) -> Result<OutGoing, anyhow::Error> {
+    let dst_gw = get_gw(&iface).or_else(|err| raise_error!(__func__, "\n", err))?;
+    let (src_mac, dst_mac) =
+        get_neighbour_mac(&iface, &src_ip, &dst_gw).or_else(|err| raise_error!(__func__, "\n", err))?;
+
+    return Ok(OutGoing {
+        iface,
+        if_name,
+        src_mac,
+        dst_mac,
+        src_ip,
+        dst_gw,
+    });
 }
 
 /// 获取访问外网使用的网关 IP
@@ -180,9 +205,9 @@ pub fn get_iface_by_ip(out_going_ip: &String) -> Option<(NetworkInterface, Strin
 }
 
 /// 获取指定网卡及第一个 IPv4 地址
-pub fn get_iface_by_name(iface_name: &str) -> Option<(NetworkInterface, Option<Ipv4Addr>)> {
+pub fn get_iface_by_name(iface_name: &String) -> Option<(NetworkInterface, Option<Ipv4Addr>)> {
     for iface in interfaces() {
-        if iface.name == iface_name {
+        if iface.name == *iface_name {
             for iface_ip in &iface.ips {
                 if let IpAddr::V4(ipv4) = iface_ip.ip() {
                     return Some((iface, Some(ipv4)));

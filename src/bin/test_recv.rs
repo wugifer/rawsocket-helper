@@ -74,8 +74,7 @@ fn main_error() -> Result<(), anyhow::Error> {
     }
 
     // 匹配接口名称
-    let (iface, _src_ip) =
-        get_iface_by_name(if_name.as_str()).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+    let (iface, _src_ip) = get_iface_by_name(&if_name).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
 
     let recv2 = recv_l2(&iface);
     match &recv2 {
