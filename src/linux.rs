@@ -2,8 +2,6 @@ use sudo::RunningAs;
 
 /// 判断 root 权限
 pub fn is_root() -> bool {
-    //*
-
     match sudo::check() {
         RunningAs::Root => true,
         RunningAs::User => false,

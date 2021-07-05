@@ -1,9 +1,9 @@
 [package]
 name = "rawsocket_helper"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["wugifer <wugifer@>"]
 edition = "2018"
-description = "use rawsocket"
+description = "use rawsocket send/recv tcp packet"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/wugifer/rawsocket-helper"
 documentation = "https://docs.rs/rawsocket-helper/"
@@ -23,4 +23,5 @@ rand               = "~0.8"
 sudo = { version = "~0.6" }
 
 [target.'cfg(target_os = "windows")'.dependencies]
+pcap   = { version = "~0.8" }
 winapi = { version = "~0.3", features = [ "handleapi", "processthreadsapi", "winnt", "securitybaseapi", "impl-default" ] }

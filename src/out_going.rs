@@ -1,3 +1,6 @@
+//! 获取访问外网使用的信息
+//!
+
 use byteorder::{BigEndian, ReadBytesExt};
 use ipnetwork::IpNetwork;
 use pnet::{
@@ -51,8 +54,6 @@ fn create_arp_packet(
     src_ip: Ipv4Addr,
     dst_ip: Ipv4Addr,
 ) -> Result<(), anyhow::Error> {
-    //*
-
     packet.set_hardware_type(ArpHardwareTypes::Ethernet);
     packet.set_protocol_type(EtherTypes::Ipv4);
     packet.set_hw_addr_len(6);
@@ -73,8 +74,6 @@ fn create_ether_arp_packet(
     src_mac: MacAddr,
     mut arp_packet: MutableArpPacket,
 ) -> Result<(), anyhow::Error> {
-    //*
-
     packet.set_destination(MacAddr::broadcast());
     packet.set_source(src_mac);
     packet.set_ethertype(EtherTypes::Arp);
@@ -85,8 +84,6 @@ fn create_ether_arp_packet(
 
 /// 获取访问外网的数据
 pub fn get_all() -> Option<OutGoing> {
-    //*
-
     if let Ok(src_ip) = get_out_going_ip() {
         if let Some((iface, if_name)) = get_iface_by_ip(&src_ip.to_string()) {
             if let Ok(dst_gw) = get_gw(&iface) {
@@ -114,8 +111,6 @@ pub fn get_all() -> Option<OutGoing> {
 #[cfg(not(windows))]
 #[auto_func_name2]
 pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
-    //*
-
     // 发送 trick 报文
     let _ = send_trick_packet();
 
@@ -147,8 +142,6 @@ pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
 #[cfg(target_os = "windows")]
 #[auto_func_name2]
 pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
-    //*
-
     // 发送 trick 报文
     let _ = send_trick_packet();
 
@@ -163,18 +156,31 @@ pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
 
 /// 获取指定网卡
 pub fn get_iface(if_index: u32) -> Option<NetworkInterface> {
-    //*
-
     interfaces()
         .into_iter()
         .filter(|iface: &NetworkInterface| iface.index == if_index)
         .next()
 }
 
+/// 获取指定网卡及名称
+///
+/// 见 get_out_going_ip
+///
+pub fn get_iface_by_ip(out_going_ip: &String) -> Option<(NetworkInterface, String)> {
+    for iface in interfaces() {
+        for ip in &iface.ips {
+            if ip.ip().to_string() == *out_going_ip {
+                let if_name = iface.name.clone();
+                return Some((iface, if_name));
+            }
+        }
+    }
+
+    None
+}
+
 /// 获取指定网卡及第一个 IPv4 地址
 pub fn get_iface_by_name(iface_name: &str) -> Option<(NetworkInterface, Option<Ipv4Addr>)> {
-    //*
-
     for iface in interfaces() {
         if iface.name == iface_name {
             for iface_ip in &iface.ips {
@@ -183,25 +189,6 @@ pub fn get_iface_by_name(iface_name: &str) -> Option<(NetworkInterface, Option<I
                 }
             }
             return Some((iface, None));
-        }
-    }
-
-    None
-}
-
-/// 获取指定网卡及名称
-///
-/// 见 get_out_going_ip
-///
-pub fn get_iface_by_ip(out_going_ip: &String) -> Option<(NetworkInterface, String)> {
-    //*
-
-    for iface in interfaces() {
-        for ip in &iface.ips {
-            if ip.ip().to_string() == *out_going_ip {
-                let if_name = iface.name.clone();
-                return Some((iface, if_name));
-            }
         }
     }
 
@@ -221,8 +208,6 @@ pub fn get_iface_by_ip(out_going_ip: &String) -> Option<(NetworkInterface, Strin
 /// ```
 ///
 pub fn get_ifaces() -> Vec<(NetworkInterface, String, String)> {
-    //*
-
     interfaces()
         .into_iter()
         .map(|iface| {
@@ -250,8 +235,6 @@ pub fn get_neighbour_mac(
     src_ip: &Ipv4Addr,
     dst_ip: &Ipv4Addr,
 ) -> Result<(MacAddr, MacAddr), anyhow::Error> {
-    //*
-
     // 建立收发报文通道
     let src_mac = iface
         .mac
@@ -264,17 +247,16 @@ pub fn get_neighbour_mac(
 
     // arp
     let mut arp_buffer = [0u8; 28];
-    let mut arp_packet = MutableArpPacket::new(&mut arp_buffer)
-        .ok_or_else(|| raise_error!(__func__, "无法创建 ARP 报文"))?;
+    let mut arp_packet =
+        MutableArpPacket::new(&mut arp_buffer).ok_or_else(|| raise_error!(__func__, "无法创建 ARP 报文"))?;
     create_arp_packet(&mut arp_packet, src_mac, src_ip.clone(), dst_ip.clone())
         .or_else(|err| raise_error!(__func__, "\n", err))?;
 
     // ether
     let mut ether_buffer = [0u8; 42];
-    let mut ether_packet = MutableEthernetPacket::new(&mut ether_buffer)
-        .ok_or_else(|| raise_error!(__func__, "无法创建 ETHER 报文"))?;
-    create_ether_arp_packet(&mut ether_packet, src_mac, arp_packet)
-        .or_else(|err| raise_error!(__func__, "\n", err))?;
+    let mut ether_packet =
+        MutableEthernetPacket::new(&mut ether_buffer).ok_or_else(|| raise_error!(__func__, "无法创建 ETHER 报文"))?;
+    create_ether_arp_packet(&mut ether_packet, src_mac, arp_packet).or_else(|err| raise_error!(__func__, "\n", err))?;
 
     // 发送
     tx.send_to(ether_packet.packet(), None)
@@ -297,10 +279,7 @@ pub fn get_neighbour_mac(
 
         // 或者超时
         if Instant::now().duration_since(start_time) > timeout {
-            return Err(raise_error!(
-                __func__,
-                format!("无法获得 {} 的 MAC 地址", dst_ip)
-            ));
+            return Err(raise_error!(__func__, format!("无法获得 {} 的 MAC 地址", dst_ip)));
         }
     }
 }
@@ -326,8 +305,6 @@ pub fn get_neighbour_mac(
 ///
 #[auto_func_name2]
 pub fn get_out_going_ip() -> Result<Ipv4Addr, anyhow::Error> {
-    //*
-
     let socket = UdpSocket::bind("0.0.0.0:0").or_else(|err| raise_error!(__func__, "\n", err))?;
 
     // 并不需要 8.8.8.8 能真实连通
@@ -346,8 +323,6 @@ pub fn get_out_going_ip() -> Result<Ipv4Addr, anyhow::Error> {
 
 /// ARP 报文处理, 从 ARP 报文提取 MAC 地址
 fn recv_arp(ethernet: &EthernetPacket, dst_ip: Ipv4Addr) -> Option<MacAddr> {
-    //*
-
     if let Some(packet) = ArpPacket::new(ethernet.payload()) {
         if packet.get_sender_proto_addr() == dst_ip {
             return Some(packet.get_sender_hw_addr());
@@ -359,8 +334,6 @@ fn recv_arp(ethernet: &EthernetPacket, dst_ip: Ipv4Addr) -> Option<MacAddr> {
 
 /// trick 报文处理, 从 ICMP 报文提取 IP 地址
 fn recv_trick_icmp(ip_packet: &Ipv4Packet) -> Option<Ipv4Addr> {
-    //*
-
     if let Some(packet) = IcmpPacket::new(ip_packet.payload()) {
         if packet.get_icmp_type() == IcmpTypes::TimeExceeded {
             let payload = packet.payload();
@@ -379,8 +352,6 @@ fn recv_trick_icmp(ip_packet: &Ipv4Packet) -> Option<Ipv4Addr> {
 
 /// trick 报文处理, 从 IP 报文提取 IP 地址
 fn recv_trick_ipv4(ethernet: &EthernetPacket) -> Option<Ipv4Addr> {
-    //*
-
     if let Some(packet) = Ipv4Packet::new(ethernet.payload()) {
         if packet.get_next_level_protocol() == IpNextHeaderProtocols::Icmp {
             return recv_trick_icmp(&packet);
@@ -392,12 +363,7 @@ fn recv_trick_ipv4(ethernet: &EthernetPacket) -> Option<Ipv4Addr> {
 
 /// 接收 trick 报文触发的 ICMP 报文
 #[auto_func_name2]
-fn recv_trick_packet(
-    rx: &mut Box<dyn DataLinkReceiver>,
-    timeout: Duration,
-) -> Result<Ipv4Addr, anyhow::Error> {
-    //*
-
+fn recv_trick_packet(rx: &mut Box<dyn DataLinkReceiver>, timeout: Duration) -> Result<Ipv4Addr, anyhow::Error> {
     let start_time = Instant::now();
     loop {
         // 反复尝试, 直到从一个正确的报文中提取到 IP 地址
@@ -424,12 +390,8 @@ fn recv_trick_packet(
 /// 发送访问外网的 trick 报文
 #[auto_func_name2]
 fn send_trick_packet() -> Result<(), anyhow::Error> {
-    //*
-
     let socket = UdpSocket::bind("0.0.0.0:0").or_else(|err| raise_error!(__func__, "\n", err))?;
-    socket
-        .set_ttl(1)
-        .or_else(|err| raise_error!(__func__, "\n", err))?;
+    socket.set_ttl(1).or_else(|err| raise_error!(__func__, "\n", err))?;
 
     let buf = [0u8; 0];
     let dest: &str = "8.8.8.8:80";

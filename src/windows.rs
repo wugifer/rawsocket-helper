@@ -8,16 +8,12 @@ use winapi::um::winnt::{TokenElevation, HANDLE, TOKEN_ELEVATION, TOKEN_QUERY};
 
 /// 判断 root 权限
 pub fn is_root() -> bool {
-    //*
-
     _is_root().unwrap_or(false)
 }
 
 /// 判断 root 权限
 #[auto_func_name2]
 fn _is_root() -> Result<bool, anyhow::Error> {
-    //*
-
     unsafe {
         // 获取令牌句柄
         let mut handle: HANDLE = ptr::null_mut();

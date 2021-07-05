@@ -1,3 +1,6 @@
+//! 解析 mac, ip, 端口
+//!
+
 use cidr_utils::cidr::IpCidr;
 use pnet::datalink::MacAddr;
 use std::net::{IpAddr, Ipv4Addr};
@@ -99,8 +102,6 @@ pub fn parse_mac(mac: &str) -> MacAddr {
 /// ```
 ///
 pub fn parse_ports(ports: &str) -> Vec<u16> {
-    //*
-
     let mut parsed_ports = Vec::new();
     for range_ports in ports.split(',') {
         parsed_ports.append(&mut parse_range_ports(range_ports));
@@ -134,8 +135,6 @@ pub fn parse_ports(ports: &str) -> Vec<u16> {
 /// ```
 ///
 pub fn parse_range_ips(ip: &str) -> Vec<Ipv4Addr> {
-    //*
-
     match IpCidr::from_str(&ip) {
         Ok(cidr) => cidr
             .iter()
@@ -162,8 +161,6 @@ pub fn parse_range_ips(ip: &str) -> Vec<Ipv4Addr> {
 /// ```
 ///
 pub fn parse_range_ports(range_ports: &str) -> Vec<u16> {
-    //*
-
     let mut result: Vec<u16> = Vec::new();
 
     let ports = range_ports
@@ -238,10 +235,7 @@ mod test {
     fn test_parse_range_ips() {
         assert_eq!(parse_range_ips(""), Vec::<Ipv4Addr>::new());
         assert_eq!(parse_range_ips("error"), Vec::<Ipv4Addr>::new());
-        assert_eq!(
-            parse_range_ips("127.0.0.1"),
-            vec![Ipv4Addr::new(127, 0, 0, 1)]
-        );
+        assert_eq!(parse_range_ips("127.0.0.1"), vec![Ipv4Addr::new(127, 0, 0, 1)]);
         assert_eq!(
             parse_range_ips("127.0.0.1/30"),
             vec![
