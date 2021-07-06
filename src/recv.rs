@@ -58,7 +58,7 @@ pub enum RecvPacket {
 /// recv_tcp 封装
 struct RecvTcp<F>
 where
-    F: Fn(&[u8], usize) -> RecvPacket,
+    F: FnMut(&[u8], usize) -> RecvPacket,
 {
     count: u64,                // 最大处理总数
     timeout: Option<Duration>, // 超时时间
@@ -71,7 +71,7 @@ where
 
 impl<F> RecvTcp<F>
 where
-    F: Fn(&[u8], usize) -> RecvPacket,
+    F: FnMut(&[u8], usize) -> RecvPacket,
 {
     /// 构造
     fn new(
@@ -147,7 +147,7 @@ where
     }
 
     /// 接收 tcp 报文
-    fn recv_tcp(&self, packet: &[u8], tcp_offset: usize) -> RecvPacket {
+    fn recv_tcp(&mut self, packet: &[u8], tcp_offset: usize) -> RecvPacket {
         if packet.len() <= tcp_offset {
             return RecvPacket::Discard;
         }
@@ -168,8 +168,6 @@ where
 }
 
 /// 通过 pnet L2 通道接收 tcp 报文
-///
-/// 通过 pnet L2 通道接收 tcp 报文,
 ///
 /// 报文特征符合 src_ip, dst_ip, src_port, dst_port 要求的, 送给 handle_func 处理
 ///
