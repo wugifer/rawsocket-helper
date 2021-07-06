@@ -189,7 +189,7 @@ pub fn recv_tcp<F>(
     handle_func: F,
 ) -> Result<u64, anyhow::Error>
 where
-    F: Fn(&[u8], usize) -> RecvPacket,
+    F: FnMut(&[u8], usize) -> RecvPacket,
 {
     RecvTcp::new(count, timeout, src_ip, dst_ip, src_port, dst_port, handle_func).__call__(rx)
 }
