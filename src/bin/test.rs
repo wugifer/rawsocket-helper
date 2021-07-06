@@ -67,7 +67,7 @@ fn test5() {
     println!("测试接收 TCP 报文");
     let og = get_all().unwrap();
     let (_, mut rx) = create_l2_channel(&og.iface).unwrap();
-    match recv_tcp(&mut rx, 1, None, None, None, None, None, |packet, tcp_offset| {
+    match recv_tcp(&mut rx, None, 1, None, None, None, None, None, |packet, tcp_offset| {
         let ip_header = Ipv4Packet::new(&packet[14..]).unwrap();
         let tcp_header = TcpPacket::new(&packet[tcp_offset..]).unwrap();
         println!(
