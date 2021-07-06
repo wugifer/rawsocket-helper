@@ -61,21 +61,21 @@ pub enum RecvPacket {
 }
 
 /// recv_tcp 封装
-struct RecvTcp<F>
+struct RecvTcp<'a, F>
 where
     F: FnMut(&[u8], usize) -> RecvPacket,
 {
-    msg: Option<Receiver<String>>, // 接收消息
-    count: u64,                    // 最大处理总数
-    timeout: Option<Duration>,     // 超时时间
-    src_ip: Option<Ipv4Addr>,      // 匹配源 IP
-    dst_ip: Option<Ipv4Addr>,      // 匹配目的 IP
-    src_port: Option<u16>,         // 匹配源端口
-    dst_port: Option<u16>,         // 匹配目的端口
-    handle_func: F,                // 满足匹配条件后的进一步处理
+    msg: Option<&'a Receiver<String>>, // 接收消息
+    count: u64,                        // 最大处理总数
+    timeout: Option<Duration>,         // 超时时间
+    src_ip: Option<Ipv4Addr>,          // 匹配源 IP
+    dst_ip: Option<Ipv4Addr>,          // 匹配目的 IP
+    src_port: Option<u16>,             // 匹配源端口
+    dst_port: Option<u16>,             // 匹配目的端口
+    handle_func: F,                    // 满足匹配条件后的进一步处理
 }
 
-impl<F> RecvTcp<F>
+impl<'a, F> RecvTcp<'a, F>
 where
     F: FnMut(&[u8], usize) -> RecvPacket,
 {
@@ -132,7 +132,7 @@ where
 
     /// 构造
     fn new(
-        msg: Option<Receiver<String>>,
+        msg: Option<&'a Receiver<String>>,
         count: u64,
         timeout: Option<Duration>,
         src_ip: Option<Ipv4Addr>,
@@ -207,7 +207,7 @@ where
 #[auto_func_name2]
 pub fn recv_tcp<F>(
     rx: &mut Box<dyn DataLinkReceiver>,
-    msg: Option<Receiver<String>>,
+    msg: Option<&Receiver<String>>,
     count: u64,
     timeout: Option<Duration>,
     src_ip: Option<Ipv4Addr>,
