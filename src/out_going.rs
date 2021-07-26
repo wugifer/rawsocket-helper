@@ -113,6 +113,7 @@ pub fn get_all_by_src_ip(src_ip: Ipv4Addr) -> Result<OutGoing, anyhow::Error> {
     get_all_with(iface, if_name, src_ip).or_else(|err| raise_error!(__func__, "\n", err))
 }
 
+/// 获取访问外网的数据, 指定出网接口, 出网 IP
 #[auto_func_name2]
 fn get_all_with(iface: NetworkInterface, if_name: String, src_ip: Ipv4Addr) -> Result<OutGoing, anyhow::Error> {
     let dst_gw = get_gw(&iface).or_else(|err| raise_error!(__func__, "\n", err))?;
@@ -304,7 +305,7 @@ pub fn get_neighbour_mac(
 
         // 或者超时
         if Instant::now().duration_since(start_time) > timeout {
-            return Err(raise_error!(__func__, format!("无法获得 {} 的 MAC 地址", dst_ip)));
+            return Err(raise_error!(__func__, format!("\n无法获得 {} 的 MAC 地址", dst_ip)));
         }
     }
 }
