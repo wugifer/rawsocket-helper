@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use pnet::{datalink::NetworkInterface, transport::tcp_packet_iter};
-use python_comm::prelude::raise_error;
-use python_comm_macros::auto_func_name2;
+use python_comm::raise_error_use::*;
 use rawsocket_helper::{
     out_going::{get_iface_by_name, get_ifaces},
     send::{create_l2_channel, create_l4_channel},
@@ -11,12 +10,12 @@ use std::{
     thread::{spawn, JoinHandle},
 };
 
-#[cfg(target_os = "windows")]
+#[cfg(feature = "use_pcap")]
 use pcap::{Active, Capture, Device};
 
 /// 创建 pcap 通道, 不打算开放给 recv 模块
-#[cfg(target_os = "windows")]
-#[auto_func_name2]
+#[cfg(feature = "use_pcap")]
+#[auto_func_name]
 fn create_pcap_channel(iface: Device) -> Result<Capture<Active>, anyhow::Error> {
     Capture::from_device(iface)
         .and_then(|iface| iface.immediate_mode(true).open())
@@ -24,8 +23,8 @@ fn create_pcap_channel(iface: Device) -> Result<Capture<Active>, anyhow::Error> 
 }
 
 /// 获取接口, 不打算开放给 recv 模块
-#[cfg(target_os = "windows")]
-#[auto_func_name2]
+#[cfg(feature = "use_pcap")]
+#[auto_func_name]
 fn get_pcap_by_name(iface_name: &str) -> Result<Device, anyhow::Error> {
     // 指定接口
     Device::list()
@@ -47,7 +46,7 @@ fn main() {
 }
 
 /// 含错误信息的入口
-#[auto_func_name2]
+#[auto_func_name]
 fn main_error() -> Result<(), anyhow::Error> {
     println!("命令: {}", env::args().collect::<Vec<String>>().join(" "));
 
@@ -63,7 +62,7 @@ fn main_error() -> Result<(), anyhow::Error> {
     // 检查接口名称
     let if_name = env::args()
         .nth(1)
-        .ok_or_else(|| raise_error!(__func__, format!("缺少命令行参数:\n{}", usage.clone())))?;
+        .ok_or_else(|| raise_error!("raw", __func__, format!("缺少命令行参数:\n{}", usage.clone())))?;
 
     // 列表
     if if_name == "list" {
@@ -74,7 +73,8 @@ fn main_error() -> Result<(), anyhow::Error> {
     }
 
     // 匹配接口名称
-    let (iface, _src_ip) = get_iface_by_name(&if_name).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+    let (iface, _src_ip) =
+        get_iface_by_name(&if_name).ok_or_else(|| raise_error!("raw", __func__, "查不到指定接口"))?;
 
     let recv2 = recv_l2(&iface);
     match &recv2 {
@@ -96,13 +96,13 @@ fn main_error() -> Result<(), anyhow::Error> {
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(feature = "use_pcap")]
     let iface = get_pcap_by_name(if_name.as_str()).or_else(|err| raise_error!(__func__, "\n", err))?;
 
-    #[cfg(target_os = "windows")]
+    #[cfg(feature = "use_pcap")]
     let recvp = recv_pcap(iface);
 
-    #[cfg(target_os = "windows")]
+    #[cfg(feature = "use_pcap")]
     match &recvp {
         Ok(_) => {
             println!("pcap    通道 ... 成功!");
@@ -120,7 +120,7 @@ fn main_error() -> Result<(), anyhow::Error> {
         let _ret = recv.join();
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(feature = "use_pcap")]
     if let Ok(recv) = recvp {
         let _ret = recv.join();
     }
@@ -168,7 +168,7 @@ fn recv_l4() -> Result<JoinHandle<u32>, anyhow::Error> {
 }
 
 /// 通过 pcap 通道接收
-#[cfg(target_os = "windows")]
+#[cfg(feature = "use_pcap")]
 fn recv_pcap(iface: Device) -> Result<JoinHandle<u32>, anyhow::Error> {
     // 通道
     let mut cap = create_pcap_channel(iface)?;

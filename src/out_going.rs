@@ -14,8 +14,7 @@ use pnet::{
         MutablePacket, Packet,
     },
 };
-use python_comm::raise_error;
-use python_comm_macros::auto_func_name2;
+use python_comm::raise_error_use::*;
 use std::{
     io::Cursor,
     net::{IpAddr, Ipv4Addr, UdpSocket},
@@ -47,7 +46,7 @@ pub struct OutGoing {
 }
 
 /// 创建 ARP 报文
-#[auto_func_name2]
+#[auto_func_name]
 fn create_arp_packet(
     packet: &mut MutableArpPacket,
     src_mac: MacAddr,
@@ -68,7 +67,7 @@ fn create_arp_packet(
 }
 
 /// 创建用于 ARP 的 ETHER 报文
-#[auto_func_name2]
+#[auto_func_name]
 fn create_ether_arp_packet(
     packet: &mut MutableEthernetPacket,
     src_mac: MacAddr,
@@ -83,38 +82,39 @@ fn create_ether_arp_packet(
 }
 
 /// 获取访问外网的数据
-#[auto_func_name2]
+#[auto_func_name]
 pub fn get_all() -> Result<OutGoing, anyhow::Error> {
     let src_ip = get_out_going_ip().or_else(|err| raise_error!(__func__, "\n", err))?;
-    let (iface, if_name) =
-        get_iface_by_ip(&src_ip.to_string()).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+    let (iface, if_name) = get_iface_by_ip(&src_ip.to_string())
+        .ok_or_else(|| raise_error!("raw", __func__, "the specified interface cannot be found"))?;
 
     get_all_with(iface, if_name, src_ip).or_else(|err| raise_error!(__func__, "\n", err))
 }
 
 /// 获取访问外网的数据, 限定出网接口
-#[auto_func_name2]
+#[auto_func_name]
 pub fn get_all_by_if_name(if_name: String) -> Result<OutGoing, anyhow::Error> {
-    let (iface, src_ip) = get_iface_by_name(&if_name).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+    let (iface, src_ip) = get_iface_by_name(&if_name)
+        .ok_or_else(|| raise_error!("raw", __func__, "the specified interface cannot be found"))?;
 
     get_all_with(
         iface,
         if_name,
-        src_ip.ok_or_else(|| raise_error!(__func__, "查不到合适的出网 IP"))?,
+        src_ip.ok_or_else(|| raise_error!("raw", __func__, "no suitable outgoing IP can be found"))?,
     )
     .or_else(|err| raise_error!(__func__, "\n", err))
 }
 
 /// 获取访问外网的数据, 限定出网 IP
-#[auto_func_name2]
+#[auto_func_name]
 pub fn get_all_by_src_ip(src_ip: Ipv4Addr) -> Result<OutGoing, anyhow::Error> {
-    let (iface, if_name) =
-        get_iface_by_ip(&src_ip.to_string()).ok_or_else(|| raise_error!(__func__, "查不到指定接口"))?;
+    let (iface, if_name) = get_iface_by_ip(&src_ip.to_string())
+        .ok_or_else(|| raise_error!("raw", __func__, "the specified interface cannot be found"))?;
     get_all_with(iface, if_name, src_ip).or_else(|err| raise_error!(__func__, "\n", err))
 }
 
 /// 获取访问外网的数据, 指定出网接口, 出网 IP
-#[auto_func_name2]
+#[auto_func_name]
 fn get_all_with(iface: NetworkInterface, if_name: String, src_ip: Ipv4Addr) -> Result<OutGoing, anyhow::Error> {
     let dst_gw = get_gw(&iface).or_else(|err| raise_error!(__func__, "\n", err))?;
     let (src_mac, dst_mac) =
@@ -135,7 +135,7 @@ fn get_all_with(iface: NetworkInterface, if_name: String, src_ip: Ipv4Addr) -> R
 /// 见 get_out_going_ip
 ///
 #[cfg(not(windows))]
-#[auto_func_name2]
+#[auto_func_name]
 pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
     // 发送 trick 报文
     let _ = send_trick_packet();
@@ -155,7 +155,7 @@ pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
         },
     ) {
         Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => Err(raise_error!(__func__, "不支持的通道类型"))?,
+        Ok(_) => raise_error!(__func__, "unsupported channel type")?,
         Err(err) => raise_error!(__func__, "\n", err)?,
     };
     recv_trick_packet(&mut rx, Duration::from_millis(3000))
@@ -166,7 +166,7 @@ pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
 /// 见 get_out_going_ip
 ///
 #[cfg(target_os = "windows")]
-#[auto_func_name2]
+#[auto_func_name]
 pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
     // 发送 trick 报文
     let _ = send_trick_packet();
@@ -174,7 +174,7 @@ pub fn get_gw(iface: &NetworkInterface) -> Result<Ipv4Addr, anyhow::Error> {
     // 接收 trick 报文触发的 ICMP 报文
     let (mut _tx, mut rx) = match channel(iface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => Err(raise_error!(__func__, "不支持的通道类型"))?,
+        Ok(_) => raise_error!(__func__, "unsupported channel type")?,
         Err(err) => raise_error!(__func__, "\n", err)?,
     };
     recv_trick_packet(&mut rx, Duration::from_millis(3000))
@@ -255,7 +255,7 @@ pub fn get_ifaces() -> Vec<(NetworkInterface, String, String)> {
 ///
 /// 见 get_out_going_ip
 ///
-#[auto_func_name2]
+#[auto_func_name]
 pub fn get_neighbour_mac(
     iface: &NetworkInterface,
     src_ip: &Ipv4Addr,
@@ -264,29 +264,29 @@ pub fn get_neighbour_mac(
     // 建立收发报文通道
     let src_mac = iface
         .mac
-        .ok_or_else(|| raise_error!(__func__, "无法获得接口 MAC 地址"))?;
+        .ok_or_else(|| raise_error!("raw", __func__, "unable to get interface MAC address"))?;
     let (mut tx, mut rx) = match channel(iface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => (tx, rx),
-        Ok(_) => Err(raise_error!(__func__, "不支持的通道类型"))?,
+        Ok(_) => raise_error!(__func__, "unsupported channel type")?,
         Err(err) => raise_error!(__func__, "\n", err)?,
     };
 
     // arp
     let mut arp_buffer = [0u8; 28];
-    let mut arp_packet =
-        MutableArpPacket::new(&mut arp_buffer).ok_or_else(|| raise_error!(__func__, "无法创建 ARP 报文"))?;
+    let mut arp_packet = MutableArpPacket::new(&mut arp_buffer)
+        .ok_or_else(|| raise_error!("raw", __func__, "unable to create ARP message"))?;
     create_arp_packet(&mut arp_packet, src_mac, src_ip.clone(), dst_ip.clone())
         .or_else(|err| raise_error!(__func__, "\n", err))?;
 
     // ether
     let mut ether_buffer = [0u8; 42];
-    let mut ether_packet =
-        MutableEthernetPacket::new(&mut ether_buffer).ok_or_else(|| raise_error!(__func__, "无法创建 ETHER 报文"))?;
+    let mut ether_packet = MutableEthernetPacket::new(&mut ether_buffer)
+        .ok_or_else(|| raise_error!("raw", __func__, "unable to create ETHER message"))?;
     create_ether_arp_packet(&mut ether_packet, src_mac, arp_packet).or_else(|err| raise_error!(__func__, "\n", err))?;
 
     // 发送
     tx.send_to(ether_packet.packet(), None)
-        .ok_or_else(|| raise_error!(__func__, "发送失败"))?
+        .ok_or_else(|| raise_error!("raw", __func__, "fail in send"))?
         .or_else(|err| raise_error!(__func__, "\n", err))?;
 
     let start_time = Instant::now();
@@ -305,7 +305,7 @@ pub fn get_neighbour_mac(
 
         // 或者超时
         if Instant::now().duration_since(start_time) > timeout {
-            return Err(raise_error!(__func__, format!("\n无法获得 {} 的 MAC 地址", dst_ip)));
+            return raise_error!(__func__, format!("\nunable to get the MAC address of {}", dst_ip));
         }
     }
 }
@@ -329,7 +329,7 @@ pub fn get_neighbour_mac(
 /// println!("dst_mac: {}", dst_mac);
 /// ```
 ///
-#[auto_func_name2]
+#[auto_func_name]
 pub fn get_out_going_ip() -> Result<Ipv4Addr, anyhow::Error> {
     let socket = UdpSocket::bind("0.0.0.0:0").or_else(|err| raise_error!(__func__, "\n", err))?;
 
@@ -341,7 +341,7 @@ pub fn get_out_going_ip() -> Result<Ipv4Addr, anyhow::Error> {
     match socket.local_addr() {
         Ok(addr) => match addr.ip() {
             IpAddr::V4(ip) => Ok(ip),
-            _ => Err(raise_error!(__func__, "不支持 IPv6")),
+            _ => raise_error!(__func__, "IPv6 is not supported"),
         },
         Err(err) => raise_error!(__func__, "\n", err),
     }
@@ -388,7 +388,7 @@ fn recv_trick_ipv4(ethernet: &EthernetPacket) -> Option<Ipv4Addr> {
 }
 
 /// 接收 trick 报文触发的 ICMP 报文
-#[auto_func_name2]
+#[auto_func_name]
 fn recv_trick_packet(rx: &mut Box<dyn DataLinkReceiver>, timeout: Duration) -> Result<Ipv4Addr, anyhow::Error> {
     let start_time = Instant::now();
     loop {
@@ -405,7 +405,7 @@ fn recv_trick_packet(rx: &mut Box<dyn DataLinkReceiver>, timeout: Duration) -> R
 
         // 或者超时
         if Instant::now().duration_since(start_time) > timeout {
-            return Err(raise_error!(__func__, "超时"));
+            return raise_error!(__func__, "timeout");
         }
 
         // 重新发送 trick 报文, 增加收到的可能性
@@ -414,7 +414,7 @@ fn recv_trick_packet(rx: &mut Box<dyn DataLinkReceiver>, timeout: Duration) -> R
 }
 
 /// 发送访问外网的 trick 报文
-#[auto_func_name2]
+#[auto_func_name]
 fn send_trick_packet() -> Result<(), anyhow::Error> {
     let socket = UdpSocket::bind("0.0.0.0:0").or_else(|err| raise_error!(__func__, "\n", err))?;
     socket.set_ttl(1).or_else(|err| raise_error!(__func__, "\n", err))?;

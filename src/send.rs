@@ -42,8 +42,7 @@ use pnet::{
     },
     transport::{transport_channel, TransportChannelType, TransportProtocol, TransportReceiver, TransportSender},
 };
-use python_comm::prelude::*;
-use python_comm_macros::auto_func_name2;
+use python_comm::raise_error_use::*;
 use rand::{rngs::ThreadRng, Rng};
 use std::net::Ipv4Addr;
 
@@ -113,25 +112,25 @@ pub fn build_l4_tcp_packet(
 /// 创建 pnet L2 通道
 ///
 /// tip: 在 Windows 平台, 如果 WinPcap (Npcap 兼容模式) 未正确安装, 无法收到包, 并且不报错!
-#[auto_func_name2]
+#[auto_func_name]
 pub fn create_l2_channel(
     iface: &NetworkInterface,
 ) -> Result<(Box<dyn DataLinkSender>, Box<dyn DataLinkReceiver>), anyhow::Error> {
     match channel(&iface, Default::default()) {
         Ok(Channel::Ethernet(tx, rx)) => Ok((tx, rx)),
-        Ok(_) => Err(raise_error!(__func__, "不支持的通道类型")),
+        Ok(_) => raise_error!(__func__, "不支持的通道类型"),
         Err(err) => raise_error!(__func__, "\n", err),
     }
 }
 
 /// 创建 pnet L4 通道
-#[auto_func_name2]
+#[auto_func_name]
 pub fn create_l4_channel() -> Result<(TransportSender, TransportReceiver), anyhow::Error> {
     let protocol = TransportChannelType::Layer4(TransportProtocol::Ipv4(IpNextHeaderProtocols::Tcp));
     transport_channel(256, protocol).or_else(|err| {
         let text = format!("{:?}", err);
         if text.contains("code: 10013,") {
-            Err(raise_error!(__func__, "权限不足"))
+            raise_error!(__func__, "权限不足")
         } else {
             raise_error!(__func__, "\n", err)
         }
@@ -139,7 +138,7 @@ pub fn create_l4_channel() -> Result<(TransportSender, TransportReceiver), anyho
 }
 
 /// 通过 pnet L2 通道构造并发送 tcp 报文
-#[auto_func_name2]
+#[auto_func_name]
 pub fn send_tcp<F>(
     tx: &mut Box<dyn DataLinkSender>,
     body_size: usize,
@@ -166,7 +165,7 @@ where
             set_l2_tcp_packet_checksum(tx_packet, src_ip, dst_ip);
         }
     }) {
-        return Err(raise_error!(__func__, "创建或发送失败"));
+        return raise_error!(__func__, "创建或发送失败");
     }
 
     Ok(())

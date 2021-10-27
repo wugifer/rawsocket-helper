@@ -1,5 +1,4 @@
-use python_comm::prelude::raise_error;
-use python_comm_macros::auto_func_name2;
+use python_comm::raise_error_use::*;
 use std::{io, ptr};
 use winapi::um::handleapi::CloseHandle;
 use winapi::um::processthreadsapi::{GetCurrentProcess, OpenProcessToken};
@@ -12,7 +11,7 @@ pub fn is_root() -> bool {
 }
 
 /// 判断 root 权限
-#[auto_func_name2]
+#[auto_func_name]
 fn _is_root() -> Result<bool, anyhow::Error> {
     unsafe {
         // 获取令牌句柄

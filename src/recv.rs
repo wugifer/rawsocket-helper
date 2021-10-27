@@ -40,8 +40,7 @@ use pnet::{
         tcp::TcpPacket,
     },
 };
-use python_comm::prelude::raise_error;
-use python_comm_macros::auto_func_name2;
+use python_comm::raise_error_use::*;
 use std::{
     net::Ipv4Addr,
     sync::mpsc::Receiver,
@@ -65,14 +64,14 @@ struct RecvTcp<'a, F>
 where
     F: FnMut(&[u8], usize) -> RecvPacket,
 {
-    msg: Option<&'a Receiver<String>>, // 接收消息
-    count: u64,                        // 最大处理总数
-    timeout: Option<Duration>,         // 超时时间
-    src_ip: Option<Ipv4Addr>,          // 匹配源 IP
-    dst_ip: Option<Ipv4Addr>,          // 匹配目的 IP
-    src_port: Option<u16>,             // 匹配源端口
-    dst_port: Option<u16>,             // 匹配目的端口
-    handle_func: F,                    // 满足匹配条件后的进一步处理
+    msg_in: Option<&'a Receiver<String>>, // 接收消息
+    count: u64,                           // 最大处理总数
+    timeout: Option<Duration>,            // 超时时间
+    src_ip: Option<Ipv4Addr>,             // 匹配源 IP
+    dst_ip: Option<Ipv4Addr>,             // 匹配目的 IP
+    src_port: Option<u16>,                // 匹配源端口
+    dst_port: Option<u16>,                // 匹配目的端口
+    handle_func: F,                       // 满足匹配条件后的进一步处理
 }
 
 impl<'a, F> RecvTcp<'a, F>
@@ -80,13 +79,13 @@ where
     F: FnMut(&[u8], usize) -> RecvPacket,
 {
     /// recv_tcp 的类封装
-    #[auto_func_name2]
-    fn __call__(&mut self, rx: &mut Box<dyn DataLinkReceiver>) -> Result<u64, anyhow::Error> {
+    #[auto_func_name]
+    fn __call__(&mut self, net_rx: &mut Box<dyn DataLinkReceiver>) -> Result<u64, anyhow::Error> {
         let mut count: u64 = 0;
         let start = Instant::now();
         loop {
             // 极端情况下没有任何报文, 这里会阻塞
-            if let Ok(packet) = rx.next() {
+            if let Ok(packet) = net_rx.next() {
                 if let Some(frame) = EthernetPacket::new(packet) {
                     if frame.get_ethertype() == EtherTypes::Ipv4 {
                         match self.recv_ipv4(packet) {
@@ -103,7 +102,7 @@ where
             }
 
             // 处理消息
-            if self.msg.is_some() && self.handle_msg_and_exit() {
+            if self.msg_in.is_some() && self.handle_msg_and_exit() {
                 return Ok(count);
             }
 
@@ -114,15 +113,15 @@ where
 
             // 或者超时
             if self.timeout.is_some() && self.timeout.unwrap() < Instant::now().duration_since(start) {
-                return Err(raise_error!(__func__, "超时"));
+                return raise_error!(__func__, "超时");
             }
         }
     }
 
     /// 处理消息, 当需要立即终止时返回 true
     fn handle_msg_and_exit(&self) -> bool {
-        match &self.msg {
-            Some(msg) => match msg.try_recv() {
+        match &self.msg_in {
+            Some(msg_in) => match msg_in.try_recv() {
                 Ok(text) => text == "stop",
                 Err(_) => false,
             },
@@ -132,7 +131,7 @@ where
 
     /// 构造
     fn new(
-        msg: Option<&'a Receiver<String>>,
+        msg_in: Option<&'a Receiver<String>>,
         count: u64,
         timeout: Option<Duration>,
         src_ip: Option<Ipv4Addr>,
@@ -142,7 +141,7 @@ where
         handle_func: F,
     ) -> Self {
         Self {
-            msg,
+            msg_in,
             count,
             timeout,
             src_ip,
@@ -204,10 +203,10 @@ where
 ///
 /// 当计数达到 count(非零) 或持续时间达到 timeout 时终止接收
 ///
-#[auto_func_name2]
+#[auto_func_name]
 pub fn recv_tcp<F>(
-    rx: &mut Box<dyn DataLinkReceiver>,
-    msg: Option<&Receiver<String>>,
+    net_rx: &mut Box<dyn DataLinkReceiver>,
+    msg_in: Option<&Receiver<String>>,
     count: u64,
     timeout: Option<Duration>,
     src_ip: Option<Ipv4Addr>,
@@ -219,5 +218,5 @@ pub fn recv_tcp<F>(
 where
     F: FnMut(&[u8], usize) -> RecvPacket,
 {
-    RecvTcp::new(msg, count, timeout, src_ip, dst_ip, src_port, dst_port, handle_func).__call__(rx)
+    RecvTcp::new(msg_in, count, timeout, src_ip, dst_ip, src_port, dst_port, handle_func).__call__(net_rx)
 }
